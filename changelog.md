@@ -2,8 +2,6 @@
 
 ##  实现一个简单的Bean容器
 
-> 分支：simple-bean-container
-
 要实现一个Bean容器，首先要知道Bean容器是什么。它是一个用于承载对象的容器，程序员只需要告诉Bean容器每个Bean对象是如何创建的，这之后程序员不需要再关心该Bean的创建细节和该Bean的相关依赖，一切都由容器来完成，当需要用到某个Bean时直接去容器中取即可。
 
 定义一个类`BeanFactory`作为Bean容器，内部包含一个`HashMap`保存Bean，再定义`registerBean(String beanName, Object bean)`和`getBean(String beanName)`两个方法。
@@ -23,8 +21,6 @@ public class BeanFactory {
 ```
 
 ## 实现Bean的定义、注册和获取
-
-> 分支：bean-definition-and-bean-definition-registry
 
 上一步中实现的Bean容器，仅仅是一个普通容器，并没有体现到IOC的思想，IOC即控制反转，指的是将控制对象的权力从程序员转到IOC容器手中，它能够解决对象之间耦合的问题，不需要每次使用通过`new`来创建，而是从容器中获取，达到一种松耦合的目的。显然，上一步我们仍然需要先`new`一个对象再将其放进容器中。这一步来做出改进，我们将Bean的创建交由容器来处理，要这么做我们就要在Bean注册的时候只注册一个类信息，在`BeanDefinition`类中保存Bean的类型，将Bean的创建在获取Bean时处理。
 
@@ -179,8 +175,6 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 
 ## Bean实例化策略InstantiationStrategy
 
-> 分支：bean-instantiation-strategy
-
 现在Bean的创建是由`AbstractAutowireCapableBeanFactory.createBean(String beanName, BeanDefinition beanDefinition)`来创建的，使用了`beanDefinition.getBeanClass().newInstance();`来实例化，但是这种创建方式只适用于无参构造函数的情况。抽象出一个实例化策略的接口`InstantiationStrategy`，以及补充相应的`getBean`入参信息，让外部调用时可以传递构造函数的入参并顺利实例化。
 
 ![image-20211102174039869](http://markdown.img.diamondog.online/image-20211102174039869.png)
@@ -308,8 +302,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 ## 为Bean注入属性和依赖Bean
 
-> 分支：inject-attribute-and-rely-for-bean
-
 Bean实例化的最后一步，我们应该考虑Bean有无属性的问题，如果类中有属性，就应该在注册Bean定义时，将属性保存起来，并且在实例化时将属性注入到Bean实例中去。
 
 新建`PropertyValue`类，里面有两个属性`name`和`value`分别对应Bean属性的名称和值
@@ -421,8 +413,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 ```
 
 ## 资源和资源加载器
-
-> 分支：read-bean-from-xml
 
 上一步我们已经完全实现了一个Bean的定义、注册、属性填充、获取，但是目前我们需要手动的创建，接下来应该对其进行优化让它能够自动通过配置文件的读取，自动创建Bean。
 
@@ -593,3 +583,175 @@ public class ResourceTest {
     }
 }
 ```
+
+## 从XML文件中加载BeanDefinition
+
+在实现了资源加载器之后，就可以从XML文件里面读取BeanDefinition，按照Spring.xml的格式来表示BeanDefinition，读出文件中的资源后就将其注册到BeanRegistry中，这样在使用的时候我们就可以直接从容器中取出Bean而不需要再手动的注册了。
+
+![](http://markdown.img.diamondog.online/image-20211103200513604.png)
+
+`BeanDefinitionReader`接口，这个接口中定义了五个方法，`getRegistry()`、`getResourceLoader()`，以及三个加载Bean定义的方法。前两个方法都是提供给后面三个方法使用的工具方法，用于获取注册表和资源加载其，这个两个方法在抽象类中实现，这样就可以让具体的实现类避免污染。
+
+```java
+public interface BeanDefinitionReader {
+    /**
+     * 获取Bean定义的注册表
+     * @return
+     */
+    BeanDefinitionRegistry getRegistry();
+
+    /**
+     * 获取资源加载器
+     * @return
+     */
+    ResourceLoader getResourceLoader();
+
+    /**
+     * 根据资源加载Bean定义
+     * @param resource
+     * @throws BeansException
+     */
+    void loadBeanDefinitions(Resource resource) throws BeansException;
+
+    /**
+     * 根据多个资源加载Bean定义
+     * @param resources
+     * @throws BeansException
+     */
+    void loadBeanDefinitions(Resource... resources) throws BeansException;
+
+    /**
+     * 根据配置文件路径加载Bean定义
+     * @param location
+     * @throws BeansException
+     */
+    void loadBeanDefinitions(String location) throws BeansException;
+}
+```
+
+抽象类`AbstractBeanDefinitionReader`，其中实现获取注册表和资源加载器的方法，通过构造函数将注册表和资源加载器传进去。
+
+```java
+public abstract class AbstractBeanDefinitionReader implements BeanDefinitionReader{
+
+    private final BeanDefinitionRegistry registry;
+
+    private ResourceLoader resourceLoader;
+
+    public AbstractBeanDefinitionReader(BeanDefinitionRegistry registry) {
+        this(registry, new DefaultResourceLoader());
+    }
+
+    public AbstractBeanDefinitionReader(BeanDefinitionRegistry registry, ResourceLoader resourceLoader) {
+        this.registry = registry;
+        this.resourceLoader = resourceLoader;
+    }
+
+    @Override
+    public BeanDefinitionRegistry getRegistry() {
+        return registry;
+    }
+
+    @Override
+    public ResourceLoader getResourceLoader() {
+        return resourceLoader;
+    }
+}
+```
+
+具体实现类`XmlBeanDefinitionReader`，这个类中实现`BeanDefinitionReader`接口的后三个方法，并且有一个自己的`doLoadBeanDefinitions(InputStream inputStream)`方法，来将加载到的资源注册到Bean定义的注册表中，这里使用了hutool的XmlUtil，按标签来读取Bean，并且进行属性填充，若注册表中没有这个Bean，则将其注册。由于从xml文件中读取的内容是String类型，所以属性仅支持String类型和引用其他Bean。
+
+```java
+public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
+
+
+    public XmlBeanDefinitionReader(BeanDefinitionRegistry registry) {
+        super(registry);
+    }
+
+    public XmlBeanDefinitionReader(BeanDefinitionRegistry registry, ResourceLoader resourceLoader) {
+        super(registry, resourceLoader);
+    }
+
+    @Override
+    public void loadBeanDefinitions(Resource resource) throws BeansException {
+        try(InputStream inputStream = resource.getInputStream()) {
+            doLoadBeanDefinitions(inputStream);
+        } catch (IOException e) {
+            throw new BeansException("IOException parsing XML document from " + resource, e);
+        }
+    }
+
+    @Override
+    public void loadBeanDefinitions(Resource... resources) throws BeansException {
+        for (Resource resource : resources) {
+            loadBeanDefinitions(resource);
+        }
+    }
+
+    @Override
+    public void loadBeanDefinitions(String location) throws BeansException {
+        Resource resource = getResourceLoader().getResource(location);
+        loadBeanDefinitions(resource);
+    }
+
+    protected void doLoadBeanDefinitions(InputStream inputStream) {
+        Document document = XmlUtil.readXML(inputStream);
+        Element root = document.getDocumentElement();
+        NodeList childNodes = root.getChildNodes();
+        for (int i = 0; i < childNodes.getLength(); i++) {
+            if (!(childNodes.item(i) instanceof Element)) {
+                continue;
+            }
+            if (!"bean".equals(childNodes.item(i).getNodeName())) {
+                continue;
+            }
+            Element bean = (Element) childNodes.item(i);
+            String id = bean.getAttribute("id");
+            String name = bean.getAttribute("name");
+            String beanClassName = bean.getAttribute("class");
+            Class<?> beanClass = null;
+            try {
+                beanClass = Class.forName(beanClassName);
+            } catch (ClassNotFoundException e) {
+                throw new BeansException("can not find class named [" + beanClassName + "]");
+            }
+            String beanName = StrUtil.isNotEmpty(id) ? id : name;
+            if (StrUtil.isEmpty(beanName)) {
+                beanName = StrUtil.lowerFirst(beanClass.getSimpleName());
+            }
+            BeanDefinition beanDefinition = new BeanDefinition(beanClass);
+            for (int j = 0; j < bean.getChildNodes().getLength(); j++) {
+                if (!(childNodes.item(i) instanceof Element)) {
+                    continue;
+                }
+                if (!"property".equals(bean.getChildNodes().item(j).getNodeName())) {
+                    continue;
+                }
+                Element property = (Element) bean.getChildNodes().item(j);
+                String attrName = property.getAttribute("name");
+                String attrValue = property.getAttribute("value");
+                String attrRef = property.getAttribute("ref");
+                if (StrUtil.isEmpty(attrName)) {
+                    throw new BeansException("the name of bean can not be empty!");
+                }
+                Object value = attrValue;
+                if (StrUtil.isNotEmpty(attrRef)) {
+                    value = new BeanReference(attrRef);
+                }
+                PropertyValue propertyValue = new PropertyValue(attrName, value);
+                beanDefinition.getPropertyValues().addPropertyValue(propertyValue);
+            }
+            if (getRegistry().containsBeanDefinition(beanName)) {
+                throw new BeansException("BeanName [" + beanName +"] is duplicate");
+            }
+            getRegistry().registerBeanDefinition(beanName, beanDefinition);
+        }
+    }
+}
+```
+
+这一步中对BeanFactory的继承层次稍微做了调整，保持和Spring中BeanFactory的继承层次一致，方便之后的功能实现。
+
+![image-20211103204942889](http://markdown.img.diamondog.online/image-20211103204942889.png)
+

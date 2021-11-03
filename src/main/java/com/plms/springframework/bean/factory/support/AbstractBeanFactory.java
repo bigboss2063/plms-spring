@@ -2,12 +2,13 @@ package com.plms.springframework.bean.factory.support;
 
 import com.plms.springframework.bean.factory.BeanFactory;
 import com.plms.springframework.bean.factory.config.BeanDefinition;
+import com.plms.springframework.bean.factory.config.ConfigurableBeanFactory;
 
 /**
  * @Author bigboss
  * @Date 2021/11/1 21:51
  */
-public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry implements BeanFactory {
+public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry implements ConfigurableBeanFactory {
     @Override
     public Object getBean(String beanName) {
         return doGetBean(beanName, null);
@@ -16,6 +17,11 @@ public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry i
     @Override
     public Object getBean(String beanName, Object... args) {
         return doGetBean(beanName, args);
+    }
+
+    @Override
+    public <T> T getBean(String beanName, Class<T> requiredType) {
+        return (T) getBean(beanName);
     }
 
     protected <T> T doGetBean(final String beanName, final Object[] args) {

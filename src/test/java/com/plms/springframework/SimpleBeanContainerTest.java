@@ -1,4 +1,4 @@
-package com.plms.springframework.bean;
+package com.plms.springframework;
 
 import org.junit.Test;
 

@@ -21,4 +21,6 @@ public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
     public void addSingleton(String beanName, Object bean) {
         singletonObjects.put(beanName, bean);
     }
+
+
 }

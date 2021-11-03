@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans>
+
+    <bean id="car" class="com.plms.springframework.bean.Car">
+        <property name="brand" value="porsche"/>
+    </bean>
+    <bean id="person" class="com.plms.springframework.bean.Person">
+        <property name="name" value="derek"/>
+        <property name="car" ref="car"/>
+    </bean>
+</beans>

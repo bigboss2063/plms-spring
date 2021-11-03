@@ -1,5 +1,7 @@
-package com.plms.springframework.bean;
+package com.plms.springframework;
 
+import com.plms.springframework.bean.PropertyValue;
+import com.plms.springframework.bean.PropertyValues;
 import com.plms.springframework.bean.factory.config.BeanDefinition;
 import com.plms.springframework.bean.factory.config.BeanReference;
 import com.plms.springframework.bean.factory.support.DefaultListableBeanFactory;

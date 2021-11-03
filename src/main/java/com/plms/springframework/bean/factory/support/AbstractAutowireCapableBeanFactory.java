@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import com.plms.springframework.bean.BeansException;
 import com.plms.springframework.bean.PropertyValue;
 import com.plms.springframework.bean.PropertyValues;
+import com.plms.springframework.bean.factory.config.AutowireCapableBeanFactory;
 import com.plms.springframework.bean.factory.config.BeanDefinition;
 import com.plms.springframework.bean.factory.config.BeanReference;
 
@@ -13,7 +14,7 @@ import java.lang.reflect.Constructor;
  * @Author bigboss
  * @Date 2021/11/1 21:52
  */
-public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory {
+public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory implements AutowireCapableBeanFactory {
 
     InstantiationStrategy instantiationStrategy = new CglibSubClassingInstantiationStrategy();
 
@@ -24,9 +25,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
             bean = createBeanInstance(beanDefinition, beanName, args);
             applyPropertyValues(beanName, bean, beanDefinition);
         } catch (Exception e) {
-            e.printStackTrace();
             throw new BeansException("Instantiation of bean failed");
         }
+        addSingleton(beanName, bean);
         return bean;
     }
 
