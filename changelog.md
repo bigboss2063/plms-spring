@@ -751,7 +751,7 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
 }
 ```
 
-这一步中对BeanFactory的继承层次稍微做了调整，保持和Spring中BeanFactory的继承层次一致，方便之后的功能实现。
+这一步中对BeanFactory的继承层次稍微做了y一些调整，保持和Spring中BeanFactory的继承层次一致，方便之后的功能实现。
 
 ![image-20211103204942889](http://markdown.img.diamondog.online/image-20211103204942889.png)
 
