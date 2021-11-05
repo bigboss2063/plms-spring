@@ -755,3 +755,168 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
 
 ![image-20211103204942889](http://markdown.img.diamondog.online/image-20211103204942889.png)
 
+## 容器扩展机制BeanFactoryPostProcess和BeanPostProcessor
+
+BeanFactoryPostProcess和BeanPostProcessor接口是Spring中非常重要的两个接口。BeanFactoryPostProcessor提供了在Bean实例化之前修改Beandefinition的能力，也就是说这个接口中的方法`void postProcessBeanFactory(ConfigurableListableBeanFactory configurableBeanFactory)`是在Bean实例化之前执行的。BeanPostProcessor提供了在Bean实例化之后能够修改或替换Bean的能力，其中定义了两个方法：在初始化之前执行的`Object postProcessBeforeInitialization(Object bean, String beanName)`和在初始化之后执行的`Object postProcessAfterInitialization(Object bean, String beanName)`。
+
+```java
+public interface BeanFactoryPostProcessor {
+
+    /**
+     * 在Bean实例化之前执行
+     * @param configurableBeanFactory
+     */
+    void postProcessBeanFactory(ConfigurableListableBeanFactory configurableBeanFactory);
+}
+```
+
+```java
+public interface BeanPostProcessor {
+
+    /**
+     * 在Bean初始化之前执行
+     * @param bean
+     * @param beanName
+     * @return
+     * @throws BeansException
+     */
+    Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException;
+
+    /**
+     * 在Bean初始化之后执行
+     * @param bean
+     * @param beanName
+     * @return
+     * @throws BeansException
+     */
+    Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException;
+}
+```
+
+BeanFactoryPostProcessor的执行比较简单，只要自定义实现这个接口，在实例化之前调用`void postProcessBeanFactory(ConfigurableListableBeanFactory configurableBeanFactory)`方法，参数是`ConfigurableListableBeanFactory`类，这个接口提供了分析和修改Bean以及预先实例化的操作能力。
+
+测试：
+
+```java
+@Test
+public void testBeanFactoryPostProcessor() {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        XmlBeanDefinitionReader xmlBeanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+        xmlBeanDefinitionReader.loadBeanDefinitions("classpath:spring.xml");
+        CustomBeanFactoryPostProcessor customBeanFactoryPostProcessor = new CustomBeanFactoryPostProcessor();
+        // 在Bean实例化之前调用
+        customBeanFactoryPostProcessor.postProcessBeanFactory(beanFactory);
+        Person person = (Person) beanFactory.getBean("person");
+        System.out.println(person);
+        Assert.isTrue(person.getName().equals("bigboss"));
+    }
+```
+
+在`AutowireCapableBeanFactory`接口中新增两个方法，分别是用来执行所有实现了`BeanPostProcessor`接口的类中的`postProcessBeforeInitialization`和`postProcessAfterInitialization`方法。
+
+```java
+public interface AutowireCapableBeanFactory extends BeanFactory {
+
+    /**
+     * 执行BeanPostProcessor的postProcessBeforeInitialization方法
+     * @param beanName
+     * @param bean
+     * @return
+     */
+    Object applyBeanPostProcessorsBeforeInitialization(String beanName, Object bean);
+
+    /**
+     * 执行BeanPostProcessor的postProcessAfterInitialization方法
+     * @param beanName
+     * @param bean
+     * @return
+     */
+    Object applyBeanPostProcessorsAfterInitialization(String beanName, Object bean);
+}
+```
+
+`AbstractAutowireCapableBeanFactory`类实现了这个接口，并且新增了方法来初始化Bean，从而可以在实例化Bean之后，调用初始化的方法，从而可以在初始化之前、之后来修改、替换Bean。
+
+```java
+public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory implements AutowireCapableBeanFactory {
+
+    InstantiationStrategy instantiationStrategy = new CglibSubClassingInstantiationStrategy();
+
+    @Override
+    protected Object createBean(String beanName, BeanDefinition beanDefinition, Object[] args) {
+        Object bean = null;
+        try {
+            bean = createBeanInstance(beanDefinition, beanName, args);
+            applyPropertyValues(beanName, bean, beanDefinition);
+            // 在实例化Bean之后调用初始化方法，在这个方法中调用BeanPostProcesser的方法
+            initializeBean(beanName, bean, beanDefinition);
+        } catch (Exception e) {
+            throw new BeansException("Instantiation of bean failed");
+        }
+        addSingleton(beanName, bean);
+        return bean;
+    }
+
+	// ...省略之前的代码
+
+    protected Object initializeBean(String beanName, Object bean, BeanDefinition beanDefinition) {
+        Object wrappedBean = applyBeanPostProcessorsBeforeInitialization(beanName, bean);
+
+        invokeInitMethods(beanName, wrappedBean, beanDefinition);
+
+        wrappedBean = applyBeanPostProcessorsAfterInitialization(beanName, wrappedBean);
+        return wrappedBean;
+    }
+
+    protected void invokeInitMethods(String beanName, Object bean, BeanDefinition beanDefinition) {
+        // 暂时还没有实现Bean的初始化
+        System.out.println("执行bean[" + beanName + "]的初始化方法");
+    }
+
+    @Override
+    public Object applyBeanPostProcessorsBeforeInitialization(String beanName, Object bean) {
+        Object result = bean;
+        for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
+            Object current = beanPostProcessor.postProcessBeforeInitialization(bean, beanName);
+            if (current == null) {
+                return result;
+            }
+            result = current;
+        }
+        return result;
+    }
+
+    @Override
+    public Object applyBeanPostProcessorsAfterInitialization(String beanName, Object bean) {
+        Object result = bean;
+        for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
+            Object current = beanPostProcessor.postProcessAfterInitialization(bean, beanName);
+            if (current == null) {
+                return result;
+            }
+            result = current;
+        }
+        return result;
+    }
+}
+```
+
+在`ConfigurableBeanFactory`接口中增加一个添加BeanPostProcesser的方法，同时，要在`AbstractBeanFactory`中增加一个List来作为保存BeanPostProcesser的容器，在初始化Bean的时候会遍历这个容器，将其中所有的BeanPostProcesser都执行一遍。
+
+测试：
+
+```java
+@Test
+public void testBeanPostProcessor() throws Exception {
+    DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+    XmlBeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+    beanDefinitionReader.loadBeanDefinitions("classpath:spring.xml");
+    CustomBeanPostProcessor customerBeanPostProcessor = new CustomBeanPostProcessor();
+    beanFactory.addBeanPostProcessor(customerBeanPostProcessor);
+    Car car = (Car) beanFactory.getBean("car");
+    System.out.println(car);
+    //brand属性在CustomerBeanPostProcessor中被修改为hongqi
+    Assert.isTrue(car.getBrand().equals("hongqi"));
+}
+```
+
