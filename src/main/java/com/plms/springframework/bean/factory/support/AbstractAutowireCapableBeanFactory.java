@@ -6,6 +6,7 @@ import com.plms.springframework.bean.PropertyValue;
 import com.plms.springframework.bean.PropertyValues;
 import com.plms.springframework.bean.factory.config.AutowireCapableBeanFactory;
 import com.plms.springframework.bean.factory.config.BeanDefinition;
+import com.plms.springframework.bean.factory.config.BeanPostProcessor;
 import com.plms.springframework.bean.factory.config.BeanReference;
 
 import java.lang.reflect.Constructor;
@@ -24,6 +25,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         try {
             bean = createBeanInstance(beanDefinition, beanName, args);
             applyPropertyValues(beanName, bean, beanDefinition);
+            initializeBean(beanName, bean, beanDefinition);
         } catch (Exception e) {
             throw new BeansException("Instantiation of bean failed");
         }
@@ -67,5 +69,44 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
     protected InstantiationStrategy getInstantiationStrategy() {
         return instantiationStrategy;
+    }
+
+    protected Object initializeBean(String beanName, Object bean, BeanDefinition beanDefinition) {
+        Object wrappedBean = applyBeanPostProcessorsBeforeInitialization(beanName, bean);
+
+        invokeInitMethods(beanName, wrappedBean, beanDefinition);
+
+        wrappedBean = applyBeanPostProcessorsAfterInitialization(beanName, wrappedBean);
+        return wrappedBean;
+    }
+
+    protected void invokeInitMethods(String beanName, Object bean, BeanDefinition beanDefinition) {
+        System.out.println("执行bean[" + beanName + "]的初始化方法");
+    }
+
+    @Override
+    public Object applyBeanPostProcessorsBeforeInitialization(String beanName, Object bean) {
+        Object result = bean;
+        for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
+            Object current = beanPostProcessor.postProcessBeforeInitialization(bean, beanName);
+            if (current == null) {
+                return result;
+            }
+            result = current;
+        }
+        return result;
+    }
+
+    @Override
+    public Object applyBeanPostProcessorsAfterInitialization(String beanName, Object bean) {
+        Object result = bean;
+        for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
+            Object current = beanPostProcessor.postProcessAfterInitialization(bean, beanName);
+            if (current == null) {
+                return result;
+            }
+            result = current;
+        }
+        return result;
     }
 }

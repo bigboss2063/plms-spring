@@ -5,6 +5,7 @@ import com.plms.springframework.bean.factory.config.BeanDefinition;
 import com.plms.springframework.bean.factory.config.ConfigurableBeanFactory;
 
 /**
+ * ConfigurableListableBeanFactory 提供分析和修改Bean以及预先实例化的操作接口
  * @Author bigboss
  * @Date 2021/11/3 13:17
  */

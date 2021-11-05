@@ -11,6 +11,13 @@ public class PropertyValues {
     private final List<PropertyValue> propertyValues = new ArrayList<>();
 
     public void addPropertyValue(PropertyValue propertyValue) {
+        for (int i = 0; i < this.propertyValues.size(); i++) {
+            PropertyValue value = this.propertyValues.get(i);
+            if (value.getName().equals(propertyValue.getName())) {
+                this.propertyValues.set(i, propertyValue);
+                return;
+            }
+        }
         this.propertyValues.add(propertyValue);
     }
 
