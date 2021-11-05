@@ -19,7 +19,7 @@ plms-spring一个简化版的spring，具有Spring的基本功能，如IoC和AOP
 
     - [x] [从XML文件中加载BeanDefinition](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#%E4%BB%8Exml%E6%96%87%E4%BB%B6%E4%B8%AD%E5%8A%A0%E8%BD%BDbeandefinition)
     
-    - [ ] [容器扩展机制BeanFactoryPostProcess和BeanPostProcessor](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#%E5%AE%B9%E5%99%A8%E6%89%A9%E5%B1%95%E6%9C%BA%E5%88%B6beanfactorypostprocess%E5%92%8Cbeanpostprocessor)
+    - [x] [容器扩展机制BeanFactoryPostProcess和BeanPostProcessor](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#%E5%AE%B9%E5%99%A8%E6%89%A9%E5%B1%95%E6%9C%BA%E5%88%B6beanfactorypostprocess%E5%92%8Cbeanpostprocessor)
 
     - [ ] 应用上下文ApplicationContext
 
