@@ -8,4 +8,8 @@
         <property name="name" value="derek"/>
         <property name="car" ref="car"/>
     </bean>
+
+    <bean class="com.plms.springframework.common.CustomBeanFactoryPostProcessor"/>
+
+    <bean class="com.plms.springframework.common.CustomBeanPostProcessor"/>
 </beans>

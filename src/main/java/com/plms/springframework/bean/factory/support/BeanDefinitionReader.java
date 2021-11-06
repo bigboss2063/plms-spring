@@ -30,10 +30,10 @@ public interface BeanDefinitionReader {
 
     /**
      * 根据多个资源加载Bean定义
-     * @param resources
+     * @param locations
      * @throws BeansException
      */
-    void loadBeanDefinitions(Resource... resources) throws BeansException;
+    void loadBeanDefinitions(String[] locations) throws BeansException;
 
     /**
      * 根据配置文件路径加载Bean定义

@@ -920,3 +920,152 @@ public void testBeanPostProcessor() throws Exception {
 }
 ```
 
+## 实现应用上下文ApplicationContext
+
+> 应用上下文ApplicationContext是spring中较之于BeanFactory更为先进的IOC容器，ApplicationContext除了拥有BeanFactory的所有功能外，还支持特殊类型bean如上一节中的BeanFactoryPostProcessor和BeanPostProcessor的自动识别、资源加载、容器事件和监听器、国际化支持、单例bean自动初始化等。
+
+我们之前在测试用例中使用的`DefaultListableBeanFactory`、`XmlBeanDefinitionReader`来操作容器都是面向Spring本身的，而在用户使用的时候我们不可能让用户手动初始化工厂、读取配置文件、添加`BeanFactoryPostProcessor`和`BeanPostProcessor`，而是应该将它们封装进应用上下文中，只需要在配置文件中配置这些内容，就可以让ApplicationContext自动完成这些任务，甚至做一些额外的拓展。 
+
+新建`ApplicationContext`，它是提供上下文功能的接口，继承自`ListableBeanFactory`，所以它有`BeanFactory`的一系列功能。
+
+```java
+public interface ApplicationContext extends ListableBeanFactory {
+    //... 暂时没有定义方法
+}
+```
+
+新建`ConfigurableApplicationContext`接口，继承`ApplicationContext`，并且定义一个核心方法`void refresh()`，用于刷新容器。
+
+```java
+public interface ConfigurableApplicationContext extends ApplicationContext{
+    void refresh() throws BeansException;
+}
+```
+
+接下来实现抽象应用上下文类，在这个抽象类中实现刷新容器的方法。因为应用上下文要实现资源加载，所以这个抽象类会继承`DefaultResourceLoader`，来处理配置文件中的BeanDefinition。并且要完成`BeanFactoryPostProcessors`的调用以及`BeanPostProcessors`的注册，同时定义`void refreshBeanFactory()`、`ConfigurableListableBeanFactory getBeanFactory()`两个抽象方法，让继承此抽象类的类完成。注意`ConfigurableListableBeanFactory`接口中添加了一个提前实例化所有单例Bean对象的方法。
+
+```java
+public abstract class AbstractApplicationContext extends DefaultResourceLoader implements ConfigurableApplicationContext {
+    @Override
+    public void refresh() throws BeansException {
+        // 刷新容器，创建 BeanFactory，并加载 BeanDefinition
+        refreshBeanFactory();
+        // 获取 BeanFactory
+        ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+        // 在Bean实例化之前调用所有的 postProcessBeanFactory方法
+        invokeBeanFactoryPostProcessors(beanFactory);
+        // 注册BeanPostProcessor
+        registerBeanPostProcessors(beanFactory);
+        // 提前实例化所有单例Bean
+        beanFactory.preInstantiateSingletons();
+    }
+
+    protected abstract void refreshBeanFactory() throws BeansException;
+
+    protected abstract ConfigurableListableBeanFactory getBeanFactory();
+
+    protected void invokeBeanFactoryPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+        Map<String, BeanFactoryPostProcessor> beanFactoryPostProcessorMap = beanFactory.getBeansOfType(BeanFactoryPostProcessor.class);
+        for (BeanFactoryPostProcessor beanFactoryPostProcessor : beanFactoryPostProcessorMap.values()) {
+            beanFactoryPostProcessor.postProcessBeanFactory(beanFactory);
+        }
+    }
+
+    protected void registerBeanPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+        Map<String, BeanPostProcessor> beanPostProcessorMap = beanFactory.getBeansOfType(BeanPostProcessor.class);
+        for (BeanPostProcessor beanPostProcessor : beanPostProcessorMap.values()) {
+            beanFactory.addBeanPostProcessor(beanPostProcessor);
+        }
+    }
+    
+    // ...getBeansOfType、getBean、getBeanDefinitionNames
+}
+```
+
+在`AbstractRefreshableApplicationContext`类中完成Bean工厂获取和资源加载，并且定义抽象方法`void loadBeanDefinitions(DefaultListableBeanFactory beanFactory)`，由继承该类的抽象类完成。
+
+```java
+public abstract class AbstractRefreshableApplicationContext extends AbstractApplicationContext {
+
+    private DefaultListableBeanFactory beanFactory;
+
+    @Override
+    protected void refreshBeanFactory() throws BeansException {
+        DefaultListableBeanFactory beanFactory = createBeanFactory();
+        loadBeanDefinitions(beanFactory);
+        this.beanFactory = beanFactory;
+    }
+
+    protected DefaultListableBeanFactory createBeanFactory() {
+        return new DefaultListableBeanFactory();
+    }
+
+    @Override
+    protected ConfigurableListableBeanFactory getBeanFactory() {
+        return beanFactory;
+    }
+
+    protected abstract void loadBeanDefinitions(DefaultListableBeanFactory beanFactory);
+}
+```
+
+根据资源加载配置这一功能由抽象类`AbstractXmlApplicationContext`完成，它实现上一个抽象类中的抽象方法，并且在该方法中调用`XmlBeanDefinitionReader`中的`loadBeanDefinitions`方法，根据资源地址加载配置信息。定义一个方法`String[] getConfigLocations()`，用于获取资源的地址。
+
+```java
+public abstract class AbstractXmlApplicationContext extends AbstractRefreshableApplicationContext {
+    @Override
+    protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) {
+        XmlBeanDefinitionReader xmlBeanDefinitionReader = new XmlBeanDefinitionReader(beanFactory, this);
+        String[] configLocations = getConfigLocations();
+        if (configLocations != null) {
+            xmlBeanDefinitionReader.loadBeanDefinitions(configLocations);
+        }
+    }
+
+    protected abstract String[] getConfigLocations();
+}
+```
+
+最后就是应用上下文的实现类了，在以上三个抽象类的层层剥离之下，这个实现类需要完成的功能就非常简单，只需要通过构造方法将资源地址传入并且调用`refresh()`就可以了。
+
+```java
+public class ClassPathXmlApplicationContext extends AbstractXmlApplicationContext {
+
+    private String[] configLocations;
+
+    public ClassPathXmlApplicationContext(String configLocation) {
+        this(new String[]{configLocation});
+    }
+
+    public ClassPathXmlApplicationContext(String[] configLocations) {
+        this.configLocations = configLocations;
+        refresh();
+    }
+
+    @Override
+    protected String[] getConfigLocations() {
+        return configLocations;
+    }
+}
+```
+
+测试：
+
+```java
+public class testApplicationContext {
+    @Test
+    public void testApplicationContext() throws Exception {
+        // 在实例化应用上下文的时候，实际上调用了refresh()方法来刷新容器
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("classpath:spring.xml");
+        Person person = applicationContext.getBean("person", Person.class);
+        System.out.println(person);
+        //name属性在CustomBeanFactoryPostProcessor中被修改为bigboss
+        assertThat(person.getName()).isEqualTo("bigboss");
+        Car car = applicationContext.getBean("car", Car.class);
+        System.out.println(car);
+        //brand属性在CustomerBeanPostProcessor中被修改为hongqi
+        assertThat(car.getBrand()).isEqualTo("hongqi");
+    }
+}
+```
+

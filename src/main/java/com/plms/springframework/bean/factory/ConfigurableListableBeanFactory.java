@@ -1,7 +1,9 @@
 package com.plms.springframework.bean.factory;
 
+import com.plms.springframework.bean.BeansException;
 import com.plms.springframework.bean.factory.config.AutowireCapableBeanFactory;
 import com.plms.springframework.bean.factory.config.BeanDefinition;
+import com.plms.springframework.bean.factory.config.BeanPostProcessor;
 import com.plms.springframework.bean.factory.config.ConfigurableBeanFactory;
 
 /**
@@ -17,4 +19,13 @@ public interface ConfigurableListableBeanFactory extends ListableBeanFactory, Co
      * @return
      */
     BeanDefinition getBeanDefinition(String beanName);
+
+    @Override
+    void addBeanPostProcessor(BeanPostProcessor beanPostProcessor);
+
+    /**
+     * 提前实例化所有单例实例
+     * @throws BeansException
+     */
+    void preInstantiateSingletons() throws BeansException;
 }

@@ -21,7 +21,7 @@ plms-spring一个简化版的spring，具有Spring的基本功能，如IoC和AOP
     
     - [x] [容器扩展机制BeanFactoryPostProcess和BeanPostProcessor](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#%E5%AE%B9%E5%99%A8%E6%89%A9%E5%B1%95%E6%9C%BA%E5%88%B6beanfactorypostprocess%E5%92%8Cbeanpostprocessor)
 
-    - [ ] 应用上下文ApplicationContext
+    - [ ] [应用上下文ApplicationContext](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#%E5%AE%9E%E7%8E%B0%E5%BA%94%E7%94%A8%E4%B8%8A%E4%B8%8B%E6%96%87applicationcontext)
 
     - [ ] Bean的初始化和销毁方法
 

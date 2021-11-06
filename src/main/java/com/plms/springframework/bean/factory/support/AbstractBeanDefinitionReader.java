@@ -1,5 +1,6 @@
 package com.plms.springframework.bean.factory.support;
 
+import com.plms.springframework.bean.BeansException;
 import com.plms.springframework.core.io.DefaultResourceLoader;
 import com.plms.springframework.core.io.ResourceLoader;
 
@@ -20,6 +21,13 @@ public abstract class AbstractBeanDefinitionReader implements BeanDefinitionRead
     public AbstractBeanDefinitionReader(BeanDefinitionRegistry registry, ResourceLoader resourceLoader) {
         this.registry = registry;
         this.resourceLoader = resourceLoader;
+    }
+
+    @Override
+    public void loadBeanDefinitions(String[] locations) throws BeansException {
+        for (String location : locations) {
+            loadBeanDefinitions(location);
+        }
     }
 
     @Override
