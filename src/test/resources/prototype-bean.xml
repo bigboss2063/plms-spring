@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans>
+    <bean id="car" class="com.plms.springframework.bean.Car" scope="prototype">
+        <property name="brand" value="porsche"/>
+    </bean>
+</beans>

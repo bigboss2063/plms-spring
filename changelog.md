@@ -1351,3 +1351,132 @@ public class AwareInterfaceTest {
 }
 ```
 
+## 对象作用域，增加Prototype
+
+之前我们创建的Bean全部都是单例的，但有时候Bean的需求有可能是原型模式的。在这一节中，将增加对原型模式的支持。
+
+首先扩展`BeanDefinition`，添加如下几个属性和方法。
+
+```java
+public class BeanDefinition {
+    
+    //...省略之前的代码
+
+    private String SCOPE_SINGLETON = "singleton";
+
+    private String SCOPE_PROTOTYPE = "prototype";
+
+    private String scope = SCOPE_SINGLETON;
+
+    private boolean singleton = true;
+
+    private boolean prototype = false;
+
+    public void setScope(String scope) {
+        this.scope = scope;
+        this.singleton = SCOPE_SINGLETON.equals(scope);
+        this.prototype = SCOPE_PROTOTYPE.equals(scope);
+    }
+
+    public boolean isSingleton() {
+        return this.singleton;
+    }
+
+    public boolean isPrototype() {
+        return this.prototype;
+    }
+	
+    // ...省略之前的代码
+}
+```
+
+由于xml配置文件中，bean标签上的属性又多了一个scope属性，所以需要改造xml文件资源加载其，将读出来的bean的scope填到beandefinition中。
+
+```java
+protected void doLoadBeanDefinitions(InputStream inputStream) {
+        // ...省略之前的代码
+        for (int i = 0; i < childNodes.getLength(); i++) {
+            if (!(childNodes.item(i) instanceof Element)) {
+                continue;
+            }
+            if (!"bean".equals(childNodes.item(i).getNodeName())) {
+                continue;
+            }
+            Element bean = (Element) childNodes.item(i);
+            String id = bean.getAttribute("id");
+            String name = bean.getAttribute("name");
+            String beanClassName = bean.getAttribute("class");
+            String initMethodName = bean.getAttribute("init-method");
+            String destroyMethodName = bean.getAttribute("destroy-method");
+            String beanScope = bean.getAttribute("scope");
+            Class<?> beanClass = null;
+            try {
+                beanClass = Class.forName(beanClassName);
+            } catch (ClassNotFoundException e) {
+                throw new BeansException("can not find class named [" + beanClassName + "]");
+            }
+            String beanName = StrUtil.isNotEmpty(id) ? id : name;
+            if (StrUtil.isEmpty(beanName)) {
+                beanName = StrUtil.lowerFirst(beanClass.getSimpleName());
+            }
+            BeanDefinition beanDefinition = new BeanDefinition(beanClass);
+            beanDefinition.setInitMethodName(initMethodName);
+            beanDefinition.setDestroyMethodName(destroyMethodName);
+            // 根据加载出的scope属性，调用BeanDefinition#setScope方法来设置Bean的scope值
+            if (StrUtil.isNotEmpty(beanScope)) {
+                beanDefinition.setScope(beanScope);
+            }
+            
+            // ...省略之前的代码
+            
+            getRegistry().registerBeanDefinition(beanName, beanDefinition);
+        }
+    }
+```
+
+最后只需要在创建Bean之后，判断它是不是一个单例Bean，如果不是单例Bean就不把它放进singletonObjects中，并且也不执行销毁方法。
+
+```java
+public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory implements AutowireCapableBeanFactory {
+
+    private InstantiationStrategy instantiationStrategy = new CglibSubclassingInstantiationStrategy();
+
+    @Override
+    protected Object createBean(String beanName, BeanDefinition beanDefinition, Object[] args) throws BeansException {
+		// ...
+    	registerDisposableBeanIfNecessary(beanName, bean, beanDefinition);
+
+         // 判断 SCOPE_SINGLETON、SCOPE_PROTOTYPE
+         if (beanDefinition.isSingleton()) {
+             addSingleton(beanName, bean);
+         }
+         return bean;
+    }
+
+    protected void registerDisposableBeanIfNecessary(String beanName, Object bean, BeanDefinition beanDefinition) {
+         // 非 Singleton 类型的 Bean 不执行销毁方法
+         if (!beanDefinition.isSingleton()) return;
+
+         if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName())) {
+             registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName, beanDefinition));
+         }
+    }
+    
+    // ... 其他功能
+}
+```
+
+测试：
+
+```java
+public class PrototypeBeanTest {
+    @Test
+    public void testPrototype() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("classpath:prototype-bean.xml");
+        Car car1 = applicationContext.getBean("car", Car.class);
+        Car car2 = applicationContext.getBean("car", Car.class);
+        // 由于配置文件中 bean标签的scope属性是prototype，所以car1和car2并不是同一个对象
+        Assert.isTrue(car1 != car2);
+    }
+}
+```
