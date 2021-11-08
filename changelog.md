@@ -1282,3 +1282,72 @@ public class InitAndDestroyMethodTest {
 }
 ```
 
+## Aware接口
+
+Aware接口是标记性接口，他的实现子类可以感知容器的相关对象，所谓感知，就是我们可以通过实现类来获取容器相关的对象，常用的Aware接口有`BeanFactoryAware`和`ApplicationContextAware`，分别可以用来感知（获取）`BeanFactory`和`ApllicationContext`，当我们需要用到容器的能力做一些拓展的时候，Aware接口就派上用场了。
+
+定义标记性接口`Aware`。
+
+```java
+// 标记类接口,里面不需要方法，实现该接口能感知容器类接口
+public interface Aware {}
+```
+
+分别定义`BeanFactoryAware`和`ApplicationContextAware`接口，继承Aware接口，分别定义`void setBeanFactory(BeanFactory beanFactory)`和`void setApplicationContext(ApplicationContext applicationContext)`方法，用于设置实现类对应的`BeanFactory`和`ApllicationContext`。
+
+```java
+public interface ApplicationContextAware extends Aware {
+	void setApplicationContext(ApplicationContext applicationContext) throws BeansException;
+}
+```
+
+```java
+public interface BeanFactoryAware extends Aware {
+	void setBeanFactory(BeanFactory beanFactory) throws BeansException;
+}
+```
+
+自定义一个`ApplicationContextAwareProcessor`，在`AbstractApplicationContext#refresh`中将它注册进容器，这个`BeanPostProcessor`会在Bean实例化之后判断这个Bean是否实现了`ApplicationContextAware`接口，如果是则调用Bean中的`setApplicationContext`方法，将当前容器设置进Bean。
+
+```java
+public class ApplicationContextAwareProcessor implements BeanPostProcessor {
+
+	private final ApplicationContext applicationContext;
+
+	public ApplicationContextAwareProcessor(ApplicationContext applicationContext) {
+		this.applicationContext = applicationContext;
+	}
+
+	@Override
+	public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+		if (bean instanceof ApplicationContextAware) {
+			((ApplicationContextAware) bean).setApplicationContext(applicationContext);
+		}
+		return bean;
+	}
+
+	@Override
+	public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+		return bean;
+	}
+}
+```
+
+在`AbstractAutowireCapableBeanFactory#initializeBean`中，即初始化之前，判断Bean是否实现了`BeanFactoryAware`接口，如果是则调用Bean中的`setBeanFactory`方法，将当前工厂设置进Bean。
+
+测试：
+
+```java
+public class AwareInterfaceTest {
+    @Test
+    public void testAwareInterface() {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("classpath:spring.xml");
+        HelloService helloService = applicationContext.getBean("helloService", HelloService.class);
+        // 在Bean中也要添加getApplicationContext()、getBeanFactory()，来获取容器相关的对象
+        assertThat(helloService.getApplicationContext()).isNotNull();
+        assertThat(helloService.getBeanFactory()).isNotNull();
+        applicationContext.registerShutdownHook();
+    }
+}
+```
+

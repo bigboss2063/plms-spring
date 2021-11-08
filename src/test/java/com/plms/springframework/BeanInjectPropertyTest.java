@@ -25,6 +25,5 @@ public class BeanInjectPropertyTest {
         BeanDefinition beanDefinition = new BeanDefinition(HelloService.class, propertyValues);
         factory.registerBeanDefinition("helloService", beanDefinition);
         HelloService helloService = (HelloService) factory.getBean("helloService");
-        helloService.queryUserInfo();
     }
 }

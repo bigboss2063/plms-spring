@@ -19,7 +19,7 @@ public class CustomBeanPostProcessor implements BeanPostProcessor {
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-        System.out.println("postProcessAfterInitialization");
+        System.out.println("CustomBeanPostProcessor#postProcessAfterInitialization");
         return bean;
     }
 }

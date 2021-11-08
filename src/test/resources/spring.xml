@@ -12,4 +12,6 @@
     <bean class="com.plms.springframework.common.CustomBeanFactoryPostProcessor"/>
 
     <bean class="com.plms.springframework.common.CustomBeanPostProcessor"/>
+
+    <bean class="com.plms.springframework.service.HelloService" id="helloService"/>
 </beans>
