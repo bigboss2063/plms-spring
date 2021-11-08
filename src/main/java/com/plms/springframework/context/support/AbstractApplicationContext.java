@@ -30,12 +30,14 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
 
     /**
      * 刷新Bean工厂
+     *
      * @throws BeansException
      */
     protected abstract void refreshBeanFactory() throws BeansException;
 
     /**
      * 获取 ConfigurableListableBeanFactory
+     *
      * @return
      */
     protected abstract ConfigurableListableBeanFactory getBeanFactory();
@@ -77,5 +79,24 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
     @Override
     public Object getBean(String beanName, Object... args) {
         return getBeanFactory().getBean(beanName, args);
+    }
+
+    @Override
+    public void close() {
+        doClose();
+    }
+
+    @Override
+    public void registerShutdownHook() {
+        Thread shutdownHook = new Thread(this::doClose);
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+    }
+
+    protected void doClose() {
+        destroyBeans();
+    }
+
+    protected void destroyBeans() {
+        getBeanFactory().destroySingletons();
     }
 }

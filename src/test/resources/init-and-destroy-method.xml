@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans>
+
+    <bean id="person" class="com.plms.springframework.bean.Person" init-method="customInitMethod" destroy-method="customDestroyMethod">
+        <property name="name" value="derek"/>
+        <property name="car" ref="car"/>
+    </bean>
+
+    <bean id="car" class="com.plms.springframework.bean.Car">
+        <property name="brand" value="porsche"/>
+    </bean>
+
+</beans>

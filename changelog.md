@@ -1069,3 +1069,216 @@ public class testApplicationContext {
 }
 ```
 
+## bean的初始化和销毁方法
+
+之前的实现中，在Bean初始化过程我们是以一个打印代替了整个初始化的过程，但现在我们来在初始化的过程中执行一些操作，比如说数据的加载执行、链接注册中心暴露RPC接口，以及在Web程序关闭时执行链接断开，内存销毁等操作，我们可以把这些操作都交给Spring容器来完成，只需要在Spring.xml中指定init-method和destroy-method，或者将Bean实现`InitializingBean`和`DisposableBean`接口。
+
+定义InitializingBean接口。
+
+```java
+public interface InitializingBean {
+
+    /**
+     * 在Bean完成属性填充之后执行
+     * @throws BeansException
+     */
+    void afterPropertiesSet() throws BeansException;
+}
+```
+
+定义DisposableBean接口
+
+```java
+public interface DisposableBean {
+
+    /**
+     * 销毁Bean实例
+     * @throws BeansException
+     */
+    void destroy() throws Exception;
+}
+```
+
+在`BeanDefinition`中补充内容，加上initMethodName、destroyMethodName两个属性，以及相应的getter、setter。
+
+```java
+public class BeanDefinition {
+
+    private Class<?> beanClass;
+
+    private PropertyValues propertyValues;
+
+    private String initMethodName;
+
+    private String destroyMethodName;
+	
+    // ...setter/getter
+}
+```
+
+接下来先完成Bean的初始化操作，也就是在设置完Bean属性后执行Bean中定义的初始化方法，在`AbstractAutowireCapableBeanFactory#invokeInitMethods`中执行。
+
+```java
+protected void invokeInitMethods(String beanName, Object bean, BeanDefinition beanDefinition) throws Exception {
+    	// 判断Bean是否实现了InitializingBean，有则执行afterPropertiesSet()方法
+        if (bean instanceof InitializingBean) {
+            ((InitializingBean) bean).afterPropertiesSet();
+        }
+        String initMethodName = beanDefinition.getInitMethodName();
+    	// 判断Bean中是否有自定义的初始化方法，有则通过反射调用自定义初始化方法
+        if (StrUtil.isNotEmpty(initMethodName)) {
+            Method method = beanDefinition.getBeanClass().getMethod(initMethodName);
+            if (null == method) {
+                throw new BeansException("Could not find an init method named '" + initMethodName + "' on bean with name '" + beanName + "'");
+            }
+            method.invoke(bean);
+        }
+    }
+```
+
+然后完成Bean的销毁操作，在`DefaultSingletonBeanRegistry`中增加属性disposableBeans，用于保存有销毁方法的Bean，添加一个`AbstractAutowireCapableBeanFactory#registerDisposableBeanIfNecessary`方法，来将有销毁方法的Bean注册到注册表中。接口`ConfigurableBeanFactory`定义了`destroySingletons`销毁方法，并由`AbstractBeanFactory`继承的父类`DefaultSingletonBeanRegistry`实现`ConfigurableBeanFactory`接口定义的 `destroySingletons`方法。
+
+在`DefaultSingletonBeanRegistry`中实现`void destroySingletons()`、`void registerDisposableBean(String beanName, DisposableBean bean)`方法，来注册、销毁带有销毁方法的Bean。
+
+```java
+public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
+
+    // ...singletonObjects
+
+    private final Map<String, DisposableBean> disposableBeans = new HashMap<>();
+
+    // ...省略之前的代码
+
+    public void registerDisposableBean(String beanName, DisposableBean bean) {
+        disposableBeans.put(beanName, bean);
+    }
+
+    public void destroySingletons() {
+        Set<String> beanNames = disposableBeans.keySet();
+        for (String beanName : beanNames) {
+            DisposableBean disposableBean = disposableBeans.remove(beanName);
+            try {
+                disposableBean.destroy();
+            } catch (Exception e) {
+                throw new BeansException("Destroy method on bean with name '" + beanName + "' throw an exception", e);
+            }
+        }
+    }
+}
+```
+
+定义销毁方法适配器，因为销毁方法有多种，目前有实现接口DisposableBean，还有在xml文件中配置destroy-method，所以这里有一个统一的接口进行销毁，在向disposableBeans中注册带有销毁方法的Bean时，就将`DisposableBeanAdapter`注册进去，销毁时统一只需调用`DisposableBeanAdapter`中的`destroy()`方法。
+
+```java
+public class DisposableBeanAdapter implements DisposableBean {
+
+    private final Object bean;
+
+    private final String beanName;
+
+    private String destroyMethodName;
+
+    public DisposableBeanAdapter(Object bean, String beanName, BeanDefinition beanDefinition) {
+        this.bean = bean;
+        this.beanName = beanName;
+        this.destroyMethodName = beanDefinition.getDestroyMethodName();
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        if (bean instanceof DisposableBean) {
+            ((DisposableBean) bean).destroy();
+        }
+        // 避免同时继承自DisposableBean，且自定义方法与DisposableBean方法同名，销毁方法执行两次的情况
+        if (StrUtil.isNotEmpty(destroyMethodName) && !(bean instanceof DisposableBean && "destroy".equals(destroyMethodName))) {
+            Method method = bean.getClass().getMethod(destroyMethodName);
+            if (null == method) {
+                throw new BeansException("Couldn't find a destroy method named '" + destroyMethodName + "' on bean with name '" + beanName + "'");
+            }
+            method.invoke(bean);
+        }
+    }
+}
+```
+
+接下来实现`AbstractAutowireCapableBeanFactory#registerDisposableBeanIfNecessary`方法并在初始化后调用
+
+```java
+public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory implements AutowireCapableBeanFactory {
+
+    InstantiationStrategy instantiationStrategy = new CglibSubClassingInstantiationStrategy();
+
+    @Override
+    protected Object createBean(String beanName, BeanDefinition beanDefinition, Object[] args) {
+        Object bean = null;
+        try {
+            bean = createBeanInstance(beanDefinition, beanName, args);
+            applyPropertyValues(beanName, bean, beanDefinition);
+            initializeBean(beanName, bean, beanDefinition);
+        } catch (Exception e) {
+            throw new BeansException("Instantiation of bean failed");
+        }
+        // 注册有销毁方法的bean
+        registerDisposableBeanIfNecessary(beanName, bean, beanDefinition);
+        addSingleton(beanName, bean);
+        return bean;
+    }
+
+	// ...省略之前的代码
+    
+    protected void registerDisposableBeanIfNecessary(String beanName, Object bean, BeanDefinition beanDefinition) {
+        // Bean如果实现了DisposableBean接口或者Bean中有自定义的销毁方法，则将其注册进注册表中
+        if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName())) {
+            // 将Bean封装成DisposableBeanAdapter，注册进disposableBeans中
+            registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName, beanDefinition));
+        }
+    }
+    
+	// ...省略之前的代码
+}
+```
+
+这样，就已经将工厂改造完毕了，现在它具有初始化和销毁Bean的能力，但是在Spring中，我们不可能手动调用销毁方法，而是希望在虚拟机关闭之前执行销毁操作，这时候就要应用上下文来完成向虚拟机注册钩子。
+
+先在`ConfigurableApplicationContext`接口中添加`void registerShutdownHook()`、`void close()`方法，接下来在`AbstractApplicationContext`中进行实现。
+
+```java
+public abstract class AbstractApplicationContext extends DefaultResourceLoader implements ConfigurableApplicationContext {
+
+    // ...省略之前的代码
+
+    @Override
+    public void close() {
+        doClose();
+    }
+
+    @Override
+    public void registerShutdownHook() {
+        Thread shutdownHook = new Thread(this::doClose);
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+    }
+
+    protected void doClose() {
+        destroyBeans();
+    }
+
+    protected void destroyBeans() {
+        // 由于子类实现的getBeanFactory()可以获取到DefaultListableBeanFactory，它可以调用父类DefaultSingletonBeanRegistry中的销毁方法
+        getBeanFactory().destroySingletons();
+    }
+}
+```
+
+测试：
+
+```java
+public class InitAndDestroyMethodTest {
+
+    @Test
+    public void testInitAndDestroyMethod() throws Exception {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("classpath:init-and-destroy-method.xml");
+        applicationContext.registerShutdownHook();  //或者手动关闭 applicationContext.close();
+    }
+}
+```
+
