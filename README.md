@@ -27,7 +27,7 @@ plms-spring一个简化版的spring，具有Spring的基本功能，如IoC和AOP
 
     - [x] [Aware接口](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#aware%E6%8E%A5%E5%8F%A3)
 
-    - [ ] Bean作用域，增加prototype支持
+    - [x] [Bean作用域，增加prototype支持](https://github.com/bigboss2063/plms-spring/blob/main/changelog.md#%E5%AF%B9%E8%B1%A1%E4%BD%9C%E7%94%A8%E5%9F%9F%E5%A2%9E%E5%8A%A0prototype)
 
     - [ ] FactoryBean
 
