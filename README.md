@@ -34,18 +34,30 @@ plms-spring一个简化版的spring，具有Spring的基本功能，如IoC和AOP
     - [ ] 容器事件和事件监听器
 - AOP  
     - [ ] 切点表达式
+
     - [ ] 基于JDK的动态代理
+
     - [ ] 基于CGLIB的动态代理
+
     - [ ] AOP代理工厂ProxyFactory
+
     - [ ] 几种常用的Advice: BeforeAdvice/AfterAdvice/AfterReturningAdvice/ThrowsAdvice
+
     - [ ] PointcutAdvisor：Pointcut和Advice的组合
+
     - [ ] 动态代理融入bean生命周期
+
 - 拓展
     - [ ] PropertyPlaceholderConfigurer
+
     - [ ] 包扫描
+
     - [ ] @Value注解
+
     - [ ] 基于注解@Autowired的依赖注入
+
     - [ ] 类型转换
+
     - [ ] 解决循环依赖
 
 ## 参考
